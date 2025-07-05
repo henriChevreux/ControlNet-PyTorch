@@ -25,10 +25,12 @@ train_params:
   task_name: 'mnist'
   batch_size: 64
   num_epochs: 40
-  controlnet_epochs : 1
+  controlnet_epochs : 3
   num_samples : 25
   num_grid_rows : 5
   ddpm_lr: 0.0001
   controlnet_lr: 0.0001
   ddpm_ckpt_name: 'ddpm_ckpt.pth'
   controlnet_ckpt_name: 'ddpm_controlnet_ckpt.pth'
+  consistency_epochs: 20
+  consistency_lr: 0.0001

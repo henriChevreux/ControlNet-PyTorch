@@ -142,6 +142,30 @@ For training unconditional LDM ensure the right dataset is used in `train_ldm_va
 * For training controlnet run ```python -m tools.train_ldm_controlnet --config config/celebhq.yaml``` for training controlnet ldm with the desire config file
 * For inference with controlnet run ```python -m tools.sample_ldm_controlnet --config config/celebhq.yaml``` for generating ldm samples using canny hints with right config file.
 
+## Training Controlnet Consistency Model from pre-trained Controlnet DDPM
+* Train: ```python -m tools.train_consistency_controlnet_distilled --config config/mnist.yaml```
+* Sample: ```python -m tools.sample_consistency_controlnet_distilled --config config/mnist.yaml --mode test --num_samples 10```
+
+## Compare Models
+* ```python -m tools.compare_controlnet_models --config config/mnist.yaml --num_samples 5 --ddpm_steps 1000```
+
+### Inference with Consistency Model
+```bash
+# Generate samples from test data
+python -m tools.sample_consistency_controlnet_distilled --config config/mnist.yaml --mode test --num_samples 20
+
+# Generate samples from random noise
+python -m tools.sample_consistency_controlnet_distilled --config config/mnist.yaml --mode random --num_samples 10
+
+# Generate samples from custom hints
+python -m tools.sample_consistency_controlnet_distilled --config config/mnist.yaml --mode custom --num_samples 15
+```
+
+**Inference Modes**:
+* **`test`**: Uses real MNIST images and their Canny edge hints
+* **`random`**: Generates from random noise with random hints
+* **`custom`**: Uses predefined geometric hints
+
 
 ## Output 
 Outputs will be saved according to the configuration present in yaml files.
