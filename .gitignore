@@ -18,3 +18,4 @@ __pycache__
 
 # Ignore pickle files
 *.pkl
+.venv/
