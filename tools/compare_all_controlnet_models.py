@@ -16,6 +16,35 @@ import torchvision.utils as vutils
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
+def load_checkpoint_safely(checkpoint_path, device):
+    """Safely load checkpoint handling different formats"""
+    if not os.path.exists(checkpoint_path):
+        return None
+    
+    try:
+        # Try weights_only=True first (safer)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        print(f"Loaded checkpoint safely: {checkpoint_path}")
+    except:
+        # Fall back to weights_only=False if needed
+        print(f"Warning: Loading {checkpoint_path} with weights_only=False")
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    
+    # Handle different checkpoint formats
+    if isinstance(checkpoint, dict):
+        if 'model_state_dict' in checkpoint:
+            print(f"Found nested checkpoint format with epoch {checkpoint.get('epoch', 'unknown')}")
+            return checkpoint['model_state_dict']
+        elif 'state_dict' in checkpoint:
+            return checkpoint['state_dict']
+        else:
+            # Assume the dict is the state dict
+            return checkpoint
+    else:
+        # Assume it's directly the state dict
+        return checkpoint
+
+
 def compare_models(args):
     # Load config
     with open(args.config_path, 'r') as file:
@@ -49,8 +78,10 @@ def compare_models(args):
     ddpm_controlnet_ckpt = os.path.join(train_config['task_name'], 
                                        train_config['controlnet_ckpt_name'])
     if os.path.exists(ddpm_controlnet_ckpt):
-        ddpm_controlnet.load_state_dict(torch.load(ddpm_controlnet_ckpt, map_location=device))
-        print("Loaded DDPM ControlNet checkpoint")
+        controlnet_state_dict = load_checkpoint_safely(ddpm_controlnet_ckpt, device)
+        if controlnet_state_dict is not None:
+            ddpm_controlnet.load_state_dict(controlnet_state_dict)
+            print("Loaded DDPM ControlNet checkpoint")
     else:
         print("Warning: DDPM ControlNet checkpoint not found. Using base DDPM only.")
     
@@ -68,12 +99,21 @@ def compare_models(args):
     consistency_ckpt = os.path.join(train_config['task_name'], 
                                    'consistency_controlnet_distilled_ckpt.pth')
     if os.path.exists(consistency_ckpt):
-        consistency_controlnet.student.load_state_dict(torch.load(consistency_ckpt, map_location=device))
-        print("Loaded Consistency ControlNet checkpoint")
+        consistency_state_dict = load_checkpoint_safely(consistency_ckpt, device)
+        if consistency_state_dict is not None:
+            try:
+                consistency_controlnet.student.load_state_dict(consistency_state_dict)
+                print("Loaded Consistency ControlNet checkpoint")
+            except Exception as e:
+                print(f"Error loading consistency checkpoint: {e}")
+                print("Continuing without consistency model...")
+                consistency_controlnet = None
     else:
         print("Warning: Consistency ControlNet checkpoint not found.")
+        consistency_controlnet = None
     
-    consistency_controlnet.eval()
+    if consistency_controlnet is not None:
+        consistency_controlnet.eval()
     
     # Load Distribution Matching ControlNet (student)
     print("Loading Distribution Matching ControlNet...")
@@ -83,20 +123,33 @@ def compare_models(args):
         device=device
     ).to(device)
     
-    # Load distribution matching student checkpoint
+    # Load distribution matching student checkpoint with robust loading
     dmd_ckpt = os.path.join(train_config['task_name'], 
-                                     'distribution_matching_controlnet_distilled_ckpt.pth')
+                           'distribution_matching_controlnet_distilled_ckpt.pth')
     if os.path.exists(dmd_ckpt):
-        dmd_controlnet.student.load_state_dict(torch.load(dmd_ckpt, map_location=device))
-        print("Loaded Distribution Matching ControlNet checkpoint")
+        dmd_state_dict = load_checkpoint_safely(dmd_ckpt, device)
+        if dmd_state_dict is not None:
+            try:
+                dmd_controlnet.student.load_state_dict(dmd_state_dict)
+                print("Loaded Distribution Matching ControlNet checkpoint")
+            except Exception as e:
+                print(f"Error loading DMD checkpoint: {e}")
+                print("Model architecture keys:", list(dmd_controlnet.student.state_dict().keys())[:5])
+                if isinstance(dmd_state_dict, dict):
+                    print("Checkpoint keys:", list(dmd_state_dict.keys())[:5])
+                print("Continuing without DMD model...")
+                dmd_controlnet = None
     else:
         print("Warning: Distribution Matching ControlNet checkpoint not found.")
+        dmd_controlnet = None
     
-    dmd_controlnet.eval()
+    if dmd_controlnet is not None:
+        dmd_controlnet.eval()
     
     # Create test dataset
+    test_dataset_path = dataset_config.get('im_test_path', dataset_config['im_path'])
     test_dataset = MnistDataset('test',
-                               im_path=dataset_config['im_test_path'],
+                               im_path=test_dataset_path,
                                return_hints=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
     
@@ -127,22 +180,29 @@ def compare_models(args):
             hint = hint.float().to(device)
             
             # DDPM ControlNet sampling
-            start_time = time.time()
             ddpm_sample, ddpm_time = generate_ddpm_sample(ddpm_controlnet, ddpm_scheduler, im, hint, args.ddpm_steps)
             ddpm_times.append(ddpm_time)
             ddpm_samples.append(ddpm_sample.cpu())
             
             # Consistency ControlNet sampling
-            start_time = time.time()
-            consistency_sample, consistency_time = generate_consistency_sample(consistency_controlnet, consistency_scheduler, im, hint)
-            consistency_times.append(consistency_time)
-            consistency_samples.append(consistency_sample.cpu())
+            if consistency_controlnet is not None:
+                consistency_sample, consistency_time = generate_consistency_sample(consistency_controlnet, consistency_scheduler, im, hint)
+                consistency_times.append(consistency_time)
+                consistency_samples.append(consistency_sample.cpu())
+            else:
+                # Use DDPM as fallback
+                consistency_samples.append(ddpm_sample.cpu())
+                consistency_times.append(ddpm_time)
             
             # Distribution Matching ControlNet sampling
-            start_time = time.time()
-            dmd_sample, dmd_time = generate_dmd_sample(dmd_controlnet, consistency_scheduler, im, hint)
-            dmd_times.append(dmd_time)
-            dmd_samples.append(dmd_sample.cpu())
+            if dmd_controlnet is not None:
+                dmd_sample, dmd_time = generate_dmd_sample(dmd_controlnet, consistency_scheduler, im, hint)
+                dmd_times.append(dmd_time)
+                dmd_samples.append(dmd_sample.cpu())
+            else:
+                # Use DDPM as fallback
+                dmd_samples.append(ddpm_sample.cpu())
+                dmd_times.append(ddpm_time)
             
             hints.append(hint.cpu())
             originals.append(im.cpu())
@@ -161,20 +221,28 @@ def compare_models(args):
     print(f"  Total sampling time: {np.sum(ddpm_times):.4f}s")
     print(f"  Steps: {args.ddpm_steps}")
     
-    print(f"\nConsistency ControlNet:")
-    print(f"  Average sampling time: {np.mean(consistency_times):.4f}s ± {np.std(consistency_times):.4f}s")
-    print(f"  Total sampling time: {np.sum(consistency_times):.4f}s")
-    print(f"  Steps: 1 (single-step)")
-    print(f"  Speedup: {np.mean(ddpm_times)/np.mean(consistency_times):.1f}x")
+    if consistency_controlnet is not None:
+        print(f"\nConsistency ControlNet:")
+        print(f"  Average sampling time: {np.mean(consistency_times):.4f}s ± {np.std(consistency_times):.4f}s")
+        print(f"  Total sampling time: {np.sum(consistency_times):.4f}s")
+        print(f"  Steps: 1 (single-step)")
+        print(f"  Speedup: {np.mean(ddpm_times)/np.mean(consistency_times):.1f}x")
+    else:
+        print(f"\nConsistency ControlNet: Not available")
     
-    print(f"\nDistribution Matching ControlNet:")
-    print(f"  Average sampling time: {np.mean(dmd_times):.4f}s ± {np.std(dmd_times):.4f}s")
-    print(f"  Total sampling time: {np.sum(dmd_times):.4f}s")
-    print(f"  Steps: 1 (single-step)")
-    print(f"  Speedup: {np.mean(ddpm_times)/np.mean(dmd_times):.1f}x")
+    if dmd_controlnet is not None:
+        print(f"\nDistribution Matching ControlNet:")
+        print(f"  Average sampling time: {np.mean(dmd_times):.4f}s ± {np.std(dmd_times):.4f}s")
+        print(f"  Total sampling time: {np.sum(dmd_times):.4f}s")
+        print(f"  Steps: 1 (single-step)")
+        print(f"  Speedup: {np.mean(ddpm_times)/np.mean(dmd_times):.1f}x")
+    else:
+        print(f"\nDistribution Matching ControlNet: Not available")
     
-    print(f"\nConsistency vs Distribution Matching:")
-    print(f"  Consistency is {np.mean(dmd_times)/np.mean(consistency_times):.2f}x slower")
+    if consistency_controlnet is not None and dmd_controlnet is not None:
+        print(f"\nConsistency vs Distribution Matching:")
+        if np.mean(dmd_times) > 0:
+            print(f"  DMD vs Consistency: {np.mean(dmd_times)/np.mean(consistency_times):.2f}x slower")
     
     print("\nResults saved to:", output_dir)
 
@@ -260,7 +328,7 @@ def save_comparison_grid(ddpm_samples, consistency_samples, dmd_samples,
         
         vutils.save_image(comparison, 
                          os.path.join(output_dir, f'comparison_{i:03d}.png'), 
-                         nrow=5)
+                         nrow=5, normalize=True)
     
     # Create summary grid
     if len(ddpm_samples) > 0:
@@ -279,19 +347,19 @@ def save_comparison_grid(ddpm_samples, consistency_samples, dmd_samples,
         
         vutils.save_image(ddpm_summary, 
                          os.path.join(output_dir, 'ddpm_summary.png'), 
-                         nrow=4)
+                         nrow=4, normalize=True)
         vutils.save_image(consistency_summary, 
                          os.path.join(output_dir, 'consistency_summary.png'), 
-                         nrow=4)
+                         nrow=4, normalize=True)
         vutils.save_image(dmd_summary, 
                          os.path.join(output_dir, 'distribution_matching_summary.png'), 
-                         nrow=4)
+                         nrow=4, normalize=True)
         vutils.save_image(hints_summary, 
                          os.path.join(output_dir, 'hints_summary.png'), 
-                         nrow=4)
+                         nrow=4, normalize=True)
         vutils.save_image(originals_summary, 
                          os.path.join(output_dir, 'originals_summary.png'), 
-                         nrow=4)
+                         nrow=4, normalize=True)
 
 
 if __name__ == '__main__':
@@ -303,4 +371,4 @@ if __name__ == '__main__':
     parser.add_argument('--ddpm_steps', default=50, type=int,
                         help='Number of DDPM sampling steps')
     args = parser.parse_args()
-    compare_models(args) 
+    compare_models(args)
