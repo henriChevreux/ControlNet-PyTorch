@@ -19,9 +19,22 @@ As of now, the repo provides code to do the following:
 * Training and Inference of ControlNet with DDPM on MNIST using canny edges
 * Training and Inference of Unconditional Latent Diffusion Model on CelebHQ dataset(resized to 128x128 with latent images being 32x32)
 * Training and Inference of ControlNet with Unconditional Latent Diffusion Model on CelebHQ using canny edges
+* Training and Inference of Consistency ControlNet distilled from DDPM ControlNet (single-step sampling)
+* Training and Inference of Distribution Matching ControlNet distilled from DDPM ControlNet (single-step sampling)
 
 
 For autoencoder of Latent Diffusion Model, I provide training and inference code for vae.
+
+## Model Types
+
+### DDPM ControlNet
+The original ControlNet implementation that uses a multi-step denoising process. Provides high-quality results but requires many inference steps.
+
+### Consistency ControlNet
+A distilled version of DDPM ControlNet that learns to predict clean images directly from noisy images in a single step. Uses consistency loss to ensure the model's predictions are consistent across different noise levels.
+
+### Distribution Matching ControlNet
+A distilled version of DDPM ControlNet that uses distribution matching loss (KL divergence + MSE) to ensure the generated samples match the target distribution. Also provides single-step sampling for fast inference.
 
 ## Setup
 * Create a new conda environment with python 3.10 then run below commands
@@ -146,8 +159,13 @@ For training unconditional LDM ensure the right dataset is used in `train_ldm_va
 * Train: ```python -m tools.train_consistency_controlnet_distilled --config config/mnist.yaml```
 * Sample: ```python -m tools.sample_consistency_controlnet_distilled --config config/mnist.yaml --mode test --num_samples 10```
 
+## Training Controlnet Distribution Matching Model from pre-trained Controlnet DDPM
+* Train: ```python -m tools.train_distribution_matching_controlnet_distilled --config config/mnist.yaml```
+* Sample: ```python -m tools.sample_distribution_matching_controlnet_distilled --config config/mnist.yaml --mode test --num_samples 10```
+
 ## Compare Models
 * ```python -m tools.compare_controlnet_models --config config/mnist.yaml --num_samples 5 --ddpm_steps 1000```
+* ```python -m tools.compare_all_controlnet_models --config config/mnist.yaml --num_samples 10 --ddpm_steps 50```
 
 ### Inference with Consistency Model
 ```bash
@@ -159,6 +177,18 @@ python -m tools.sample_consistency_controlnet_distilled --config config/mnist.ya
 
 # Generate samples from custom hints
 python -m tools.sample_consistency_controlnet_distilled --config config/mnist.yaml --mode custom --num_samples 15
+```
+
+### Inference with Distribution Matching Model
+```bash
+# Generate samples from test data
+python -m tools.sample_distribution_matching_controlnet_distilled --config config/mnist.yaml --mode test --num_samples 20
+
+# Generate samples from random noise
+python -m tools.sample_distribution_matching_controlnet_distilled --config config/mnist.yaml --mode random --num_samples 10
+
+# Generate samples from custom hints
+python -m tools.sample_distribution_matching_controlnet_distilled --config config/mnist.yaml --mode custom --num_samples 15
 ```
 
 **Inference Modes**:

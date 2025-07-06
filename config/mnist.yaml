@@ -34,3 +34,5 @@ train_params:
   controlnet_ckpt_name: 'ddpm_controlnet_ckpt.pth'
   consistency_epochs: 20
   consistency_lr: 0.0001
+  distribution_matching_epochs: 20
+  distribution_matching_lr: 0.00005
