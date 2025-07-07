@@ -6,11 +6,15 @@ def get_time_embedding(time_steps, temb_dim):
     r"""
     Convert time steps tensor into an embedding using the
     sinusoidal time embedding formula
-    :param time_steps: 1D tensor of length batch size
+    :param time_steps: 1D tensor of length batch size or scalar
     :param temb_dim: Dimension of the embedding
     :return: BxD embedding representation of B time steps
     """
     assert temb_dim % 2 == 0, "time embedding dimension must be divisible by 2"
+
+    # Ensure time_steps is at least 1-dimensional
+    if time_steps.dim() == 0:
+        time_steps = time_steps.unsqueeze(0)
 
     # factor = 10000^(2i/d_model)
     factor = 10000 ** ((torch.arange(

@@ -91,13 +91,13 @@ def compare_models(args):
     print("Loading Consistency ControlNet...")
     consistency_controlnet = ConsistencyControlNetDistilled(
         model_config,
-        os.path.join(train_config['task_name'], train_config['ddpm_ckpt_name']),
+        os.path.join(train_config['task_name'], train_config['controlnet_ckpt_name']),
         device=device
     ).to(device)
     
     # Load consistency student checkpoint
     consistency_ckpt = os.path.join(train_config['task_name'], 
-                                   'consistency_controlnet_distilled_ckpt.pth')
+                                   'consistency_controlnet_distilled_latest.pth')
     if os.path.exists(consistency_ckpt):
         consistency_state_dict = load_checkpoint_safely(consistency_ckpt, device)
         if consistency_state_dict is not None:
@@ -119,7 +119,7 @@ def compare_models(args):
     print("Loading Distribution Matching ControlNet...")
     dmd_controlnet = DistributionMatchingControlNetDistilled(
         model_config,
-        os.path.join(train_config['task_name'], train_config['ddpm_ckpt_name']),
+        os.path.join(train_config['task_name'], train_config['controlnet_ckpt_name']),
         device=device
     ).to(device)
     
@@ -264,8 +264,9 @@ def generate_ddpm_sample(model, scheduler, im, hint, num_steps):
 def generate_consistency_sample(model, scheduler, im, hint):
     start_time = time.time()
     x_t = torch.randn_like(im)
-    t = torch.full((im.shape[0],), scheduler.num_timesteps - 1, device=im.device)
-    x_0_pred = model.student(x_t, t, hint)
+    # Use sigma_max for consistency model (high noise level for single-step generation)
+    sigma = torch.full((im.shape[0],), model.sigma_max, device=im.device)
+    x_0_pred = model.student(x_t, sigma, hint)
     end_time = time.time()
     return x_0_pred, end_time - start_time
 

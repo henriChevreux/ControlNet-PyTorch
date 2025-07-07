@@ -90,7 +90,7 @@ def test_distribution_matching_model():
     print("3. Testing loss computation...")
     try:
         x_0_target = torch.randn_like(x_t)
-        total_loss, dist_matching_loss, distillation_loss = distilled_model.distillation_loss(
+        total_loss, dist_matching_loss, distillation_loss, dist_components = distilled_model.distillation_loss(
             x_t, t, hint, x_0_target
         )
         

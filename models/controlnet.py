@@ -26,8 +26,21 @@ class ControlNet(nn.Module):
         # Load weights for the trained model
         if model_ckpt is not None and device is not None:
             print('Loading Trained Diffusion Model')
-            self.trained_unet.load_state_dict(torch.load(model_ckpt,
-                                                         map_location=device), strict=True)
+            checkpoint = torch.load(model_ckpt, map_location=device)
+            
+            # Check if this is a full ControlNet checkpoint or just a UNet checkpoint
+            if 'trained_unet.conv_in.weight' in checkpoint:
+                # This is a full ControlNet checkpoint, extract the trained_unet part
+                trained_unet_state_dict = {}
+                for key, value in checkpoint.items():
+                    if key.startswith('trained_unet.'):
+                        # Remove 'trained_unet.' prefix
+                        new_key = key[len('trained_unet.'):]
+                        trained_unet_state_dict[new_key] = value
+                self.trained_unet.load_state_dict(trained_unet_state_dict, strict=True)
+            else:
+                # This is a raw UNet checkpoint
+                self.trained_unet.load_state_dict(checkpoint, strict=True)
 
         # ControlNet Copy of Trained DDPM
         # use_up = False removes the upblocks(decoder layers) from DDPM Unet
@@ -35,8 +48,21 @@ class ControlNet(nn.Module):
         # Load same weights as the trained model
         if model_ckpt is not None and device is not None:
             print('Loading Control Diffusion Model')
-            self.control_copy_unet.load_state_dict(torch.load(model_ckpt,
-                                                              map_location=device), strict=False)
+            checkpoint = torch.load(model_ckpt, map_location=device)
+            
+            # Check if this is a full ControlNet checkpoint or just a UNet checkpoint
+            if 'control_copy_unet.conv_in.weight' in checkpoint:
+                # This is a full ControlNet checkpoint, extract the control_copy_unet part
+                control_copy_unet_state_dict = {}
+                for key, value in checkpoint.items():
+                    if key.startswith('control_copy_unet.') and not key.startswith('control_copy_unet_hint_block.') and not key.startswith('control_copy_unet_down_zero_convs.') and not key.startswith('control_copy_unet_mid_zero_convs.'):
+                        # Remove 'control_copy_unet.' prefix
+                        new_key = key[len('control_copy_unet.'):]
+                        control_copy_unet_state_dict[new_key] = value
+                self.control_copy_unet.load_state_dict(control_copy_unet_state_dict, strict=False)
+            else:
+                # This is a raw UNet checkpoint
+                self.control_copy_unet.load_state_dict(checkpoint, strict=False)
 
         # Hint Block for ControlNet
         # Stack of Conv activation and zero convolution at the end
@@ -79,6 +105,37 @@ class ControlNet(nn.Module):
                                        padding=0))
             for i in range(1, len(self.trained_unet.mid_channels))
         ])
+        
+        # Load the hint blocks and zero convolutions if they exist in the checkpoint
+        if model_ckpt is not None and device is not None:
+            checkpoint = torch.load(model_ckpt, map_location=device)
+            
+            # Load hint block if it exists
+            if 'control_copy_unet_hint_block.0.weight' in checkpoint:
+                hint_block_state_dict = {}
+                for key, value in checkpoint.items():
+                    if key.startswith('control_copy_unet_hint_block.'):
+                        new_key = key[len('control_copy_unet_hint_block.'):]
+                        hint_block_state_dict[new_key] = value
+                self.control_copy_unet_hint_block.load_state_dict(hint_block_state_dict, strict=True)
+                
+            # Load down zero convs if they exist
+            if any(key.startswith('control_copy_unet_down_zero_convs.') for key in checkpoint.keys()):
+                down_zero_convs_state_dict = {}
+                for key, value in checkpoint.items():
+                    if key.startswith('control_copy_unet_down_zero_convs.'):
+                        new_key = key[len('control_copy_unet_down_zero_convs.'):]
+                        down_zero_convs_state_dict[new_key] = value
+                self.control_copy_unet_down_zero_convs.load_state_dict(down_zero_convs_state_dict, strict=True)
+                
+            # Load mid zero convs if they exist
+            if any(key.startswith('control_copy_unet_mid_zero_convs.') for key in checkpoint.keys()):
+                mid_zero_convs_state_dict = {}
+                for key, value in checkpoint.items():
+                    if key.startswith('control_copy_unet_mid_zero_convs.'):
+                        new_key = key[len('control_copy_unet_mid_zero_convs.'):]
+                        mid_zero_convs_state_dict[new_key] = value
+                self.control_copy_unet_mid_zero_convs.load_state_dict(mid_zero_convs_state_dict, strict=True)
 
     def get_params(self):
         # Add all ControlNet parameters
