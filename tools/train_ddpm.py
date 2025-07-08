@@ -6,6 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.optim import Adam
 from dataset.mnist_dataset import MnistDataset
+from dataset.cifar_dataset import CifarDataset
 from torch.utils.data import DataLoader
 from models.unet_base import Unet
 from scheduler.linear_noise_scheduler import LinearNoiseScheduler
@@ -37,8 +38,14 @@ def train(args):
                                      beta_end=diffusion_config['beta_end'])
     
     # Create the dataset
-    mnist = MnistDataset('train', im_path=dataset_config['im_path'])
-    mnist_loader = DataLoader(mnist,
+    if train_config['task_name'] == 'mnist':
+        dataset = MnistDataset('train', im_path=dataset_config['im_path'])
+    elif train_config['task_name'] == 'cifar10':
+        dataset = CifarDataset('train', im_path=dataset_config['im_path'], download=dataset_config['download'])
+    else:
+        raise ValueError(f"Invalid dataset name: {train_config['task_name']}")
+    
+    dataset_loader = DataLoader(dataset,
                               batch_size=train_config['batch_size'],
                               shuffle=True,
                               num_workers=4)
@@ -64,7 +71,7 @@ def train(args):
     # Run training
     for epoch_idx in range(num_epochs):
         losses = []
-        for im in tqdm(mnist_loader):
+        for im in tqdm(dataset_loader):
             optimizer.zero_grad()
             im = im.float().to(device)
             

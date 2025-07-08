@@ -6,6 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.optim import Adam
 from dataset.mnist_dataset import MnistDataset
+from dataset.cifar_dataset import CifarDataset
 from torch.utils.data import DataLoader
 from models.controlnet import ControlNet
 from scheduler.linear_noise_scheduler import LinearNoiseScheduler
@@ -37,10 +38,18 @@ def train(args):
                                      beta_end=diffusion_config['beta_end'])
     
     # Create the dataset
-    mnist = MnistDataset('train',
-                         im_path=dataset_config['im_path'],
-                         return_hints=True)
-    mnist_loader = DataLoader(mnist, batch_size=train_config['batch_size'], shuffle=True)
+    if train_config['task_name'] == 'mnist':
+        dataset = MnistDataset('train',
+                             im_path=dataset_config['im_path'],
+                             return_hints=True)
+    elif train_config['task_name'] == 'cifar10':
+        dataset = CifarDataset('train',
+                             im_path=dataset_config['im_path'],
+                             return_hints=True,
+                             download=dataset_config['download'])
+    else:
+        raise ValueError(f"Invalid dataset name: {train_config['task_name']}")
+    dataset_loader = DataLoader(dataset, batch_size=train_config['batch_size'], shuffle=True)
 
     # Load model with checkpoint
     model = ControlNet(model_config,
@@ -71,7 +80,7 @@ def train(args):
     steps = 0
     for epoch_idx in range(num_epochs):
         losses = []
-        for im, hint in tqdm(mnist_loader):
+        for im, hint in tqdm(dataset_loader):
             optimizer.zero_grad()
 
             im = im.float().to(device)

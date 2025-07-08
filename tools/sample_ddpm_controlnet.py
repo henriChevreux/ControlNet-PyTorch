@@ -7,6 +7,7 @@ import random
 from torchvision.utils import make_grid
 from tqdm import tqdm
 from dataset.mnist_dataset import MnistDataset
+from dataset.cifar_dataset import CifarDataset
 from models.controlnet import ControlNet
 from scheduler.linear_noise_scheduler import LinearNoiseScheduler
 
@@ -76,7 +77,12 @@ def infer(args):
     dataset_config = config['dataset_params']
 
     # Change to require hints
-    mnist_canny = MnistDataset('test', im_path=dataset_config['im_test_path'], return_hints=True)
+    if train_config['task_name'] == 'mnist':
+        dataset = MnistDataset('test', im_path=dataset_config['im_test_path'], return_hints=True)
+    elif train_config['task_name'] == 'cifar10':
+        dataset = CifarDataset('test', im_path=dataset_config['im_test_path'], return_hints=True, download=dataset_config['download'])
+    else:
+        raise ValueError(f"Invalid dataset name: {train_config['task_name']}")
 
     # Load model with checkpoint
     model = ControlNet(model_config,
@@ -96,7 +102,7 @@ def infer(args):
                                      beta_start=diffusion_config['beta_start'],
                                      beta_end=diffusion_config['beta_end'])
     with torch.no_grad():
-        sample(model, scheduler, train_config, model_config, diffusion_config, mnist_canny)
+        sample(model, scheduler, train_config, model_config, diffusion_config, dataset)
 
 
 if __name__ == '__main__':
