@@ -3,6 +3,7 @@ import yaml
 import argparse
 import os
 from dataset.mnist_dataset import MnistDataset
+from dataset.cifar_dataset import CifarDataset
 from torch.utils.data import DataLoader
 from models.distribution_matching_controlnet import DistributionMatchingControlNetDistilled
 from scheduler.linear_noise_scheduler import LinearNoiseScheduler
@@ -71,9 +72,15 @@ def generate_from_test_data(model, scheduler, dataset_config, output_dir, num_sa
     print(f"Generating {num_samples} samples from test data...")
     
     # Create test dataset
-    test_dataset = MnistDataset('test',
-                               im_path=dataset_config['im_test_path'],
-                               return_hints=True)
+    if dataset_config['task_name'] == 'mnist':
+        test_dataset = MnistDataset('test',
+                                im_path=dataset_config['im_test_path'],
+                                return_hints=True)
+    elif dataset_config['task_name'] == 'cifar10':
+        test_dataset = CifarDataset('test',
+                                im_path=dataset_config['im_test_path'],
+                                return_hints=True,
+                                download=dataset_config['download'])
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
     
     samples_generated = 0

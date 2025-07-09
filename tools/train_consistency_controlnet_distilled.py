@@ -6,6 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.optim import Adam
 from dataset.mnist_dataset import MnistDataset
+from dataset.cifar_dataset import CifarDataset
 from torch.utils.data import DataLoader
 from models.consistency_controlnet_distilled import ConsistencyControlNetDistilled
 from scheduler.consistency_scheduler import ConsistencyScheduler
@@ -35,11 +36,18 @@ def train(args):
     scheduler = ConsistencyScheduler(
         num_timesteps=diffusion_config['num_timesteps'])
     
-    # Create dataset
-    mnist = MnistDataset('train',
-                         im_path=dataset_config['im_path'],
-                         return_hints=True)
-    mnist_loader = DataLoader(mnist, batch_size=train_config['batch_size'], shuffle=True)
+    # Create the dataset
+    if train_config['task_name'] == 'mnist':
+        dataset = MnistDataset('train', im_path=dataset_config['im_path'], return_hints=True)
+    elif train_config['task_name'] == 'cifar10':
+        dataset = CifarDataset('train', im_path=dataset_config['im_path'], download=dataset_config['download'], return_hints=True)
+    else:
+        raise ValueError(f"Invalid dataset name: {train_config['task_name']}")
+    
+    dataset_loader = DataLoader(dataset,
+                              batch_size=train_config['batch_size'],
+                              shuffle=True,
+                              num_workers=4)
     
     # Create distilled model - use ControlNet checkpoint, not DDPM checkpoint
     teacher_ckpt_path = os.path.join(train_config['task_name'], 
@@ -74,7 +82,7 @@ def train(args):
         consistency_losses = []
         distillation_losses = []
         
-        for im, hint in tqdm(mnist_loader):
+        for im, hint in tqdm(dataset_loader):
             optimizer.zero_grad()
             
             im = im.float().to(device)

@@ -7,6 +7,7 @@ from tqdm import tqdm
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from dataset.mnist_dataset import MnistDataset
+from dataset.cifar_dataset import CifarDataset
 from torch.utils.data import DataLoader
 from models.distribution_matching_controlnet import DistributionMatchingControlNetDistilled
 from scheduler.linear_noise_scheduler import LinearNoiseScheduler
@@ -279,18 +280,36 @@ def train(args):
     dataset_config = config['dataset_params']
     
     # Create datasets
-    train_dataset = MnistDataset('train',
-                                im_path=dataset_config['im_path'],
-                                return_hints=True)
+    if train_config['task_name'] == 'mnist':
+        train_dataset = MnistDataset('train',
+                                    im_path=dataset_config['im_path'],
+                                    return_hints=True)
+    elif train_config['task_name'] == 'cifar10':
+        train_dataset = CifarDataset('train',
+                                    im_path=dataset_config['im_path'],
+                                    return_hints=True,
+                                    download=dataset_config['download'])
+    else:
+        raise ValueError(f"Invalid dataset name: {train_config['task_name']}")
+    
     train_loader = DataLoader(train_dataset, 
                              batch_size=train_config['batch_size'], 
                              shuffle=True, 
                              num_workers=4)
     
-    # Create validation dataset (optional)
-    val_dataset = MnistDataset('val',
-                              im_path=dataset_config['im_path'],
-                              return_hints=True)
+    # Create validation dataset (optional) - use test split for validation
+    if train_config['task_name'] == 'mnist':
+        val_dataset = MnistDataset('test',
+                                  im_path=dataset_config['im_test_path'],
+                                  return_hints=True)
+    elif train_config['task_name'] == 'cifar10':
+        val_dataset = CifarDataset('test',
+                                  im_path=dataset_config['im_test_path'],
+                                  return_hints=True,
+                                  download=dataset_config['download'])
+    else:
+        raise ValueError(f"Invalid dataset name: {train_config['task_name']}")
+    
     val_loader = DataLoader(val_dataset, 
                            batch_size=train_config['batch_size'], 
                            shuffle=False, 
