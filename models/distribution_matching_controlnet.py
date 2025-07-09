@@ -13,7 +13,7 @@ def make_zero_module(module):
     return module
 
 
-class MNISTFeatureExtractor(nn.Module):
+class FeatureExtractor(nn.Module):
     """Feature extractor optimized for MNIST grayscale images"""
     def __init__(self, in_channels=1, trainable=False):
         super().__init__()
@@ -164,7 +164,7 @@ class DistributionMatchingControlNetDistilled(nn.Module):
         self.teacher.eval()  # Freeze teacher
         
         # Feature extractor for perceptual/distribution matching
-        self.feature_extractor = MNISTFeatureExtractor(in_channels=model_config.get('in_channels', 1))
+        self.feature_extractor = FeatureExtractor(in_channels=model_config.get('in_channels', 1))
         
         # Noise scheduler for teacher
         from scheduler.linear_noise_scheduler import LinearNoiseScheduler

@@ -11,6 +11,7 @@ diffusion_params:
   
 model_params:
   im_channels: 3
+  in_channels: 3
   im_size: 32
   hint_channels: 3
   down_channels: [64, 128, 256, 512]
