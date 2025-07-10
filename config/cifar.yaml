@@ -23,6 +23,7 @@ model_params:
   num_mid_layers: 2
   num_up_layers: 2
   num_heads: 4
+  sigma_data: 1.0  # Higher value for RGB data
   
 train_params:
   task_name: 'cifar10'

@@ -74,19 +74,13 @@ def generate_from_random_noise(model, scheduler, model_config, output_dir, num_s
     
     with torch.no_grad():
         for i in range(num_samples):
-            # Generate random noise
-            x_t = torch.randn(1, model_config['im_channels'], 
-                             model_config['im_size'], model_config['im_size']).to(device)
-            
             # Generate random control hint (simulate Canny edges)
             hint = torch.randn(1, model_config['hint_channels'], 
                               model_config['im_size'], model_config['im_size']).to(device)
             
-            # Use sigma_max for single-step generation (not timestep)
-            sigma = torch.full((1,), model.student.sigma_max, device=device)
-            
-            # Generate sample
-            x_0_pred = model.student(x_t, sigma, hint)
+            # Use the model's built-in generate method
+            shape = (1, model_config['im_channels'], model_config['im_size'], model_config['im_size'])
+            x_0_pred = model.generate(hint, shape=shape, num_steps=1)
             
             # Save sample
             sample = torch.clamp(x_0_pred, -1, 1)
@@ -143,14 +137,8 @@ def generate_from_test_data(model, scheduler, dataset_config, output_dir, num_sa
             im = im.float().to(device)
             hint = hint.float().to(device)
             
-            # Start from pure noise
-            x_t = torch.randn_like(im)
-            
-            # Use sigma_max for single-step generation (not timestep)
-            sigma = torch.full((im.shape[0],), model.student.sigma_max, device=device)
-            
-            # Generate sample - consistency model expects sigma, not timestep
-            x_0_pred = model.student(x_t, sigma, hint)
+            # Use the model's built-in generate method for proper consistency sampling
+            x_0_pred = model.generate(hint, shape=im.shape, num_steps=1)
             
             # Save results
             sample = torch.clamp(x_0_pred, -1, 1)
@@ -203,18 +191,12 @@ def generate_from_custom_hints(model, scheduler, model_config, output_dir, num_s
     
     with torch.no_grad():
         for i in range(num_samples):
-            # Generate random noise
-            x_t = torch.randn(1, model_config['im_channels'], 
-                             model_config['im_size'], model_config['im_size']).to(device)
-            
             # Use custom hint
             hint = custom_hints[i:i+1].to(device)
             
-            # Use sigma_max for single-step generation (not timestep)
-            sigma = torch.full((1,), model.student.sigma_max, device=device)
-            
-            # Generate sample
-            x_0_pred = model.student(x_t, sigma, hint)
+            # Use the model's built-in generate method
+            shape = (1, model_config['im_channels'], model_config['im_size'], model_config['im_size'])
+            x_0_pred = model.generate(hint, shape=shape, num_steps=1)
             
             # Save sample
             sample = torch.clamp(x_0_pred, -1, 1)
