@@ -82,11 +82,11 @@ def generate_from_random_noise(model, scheduler, model_config, output_dir, num_s
             hint = torch.randn(1, model_config['hint_channels'], 
                               model_config['im_size'], model_config['im_size']).to(device)
             
-            # Use final timestep for single-step generation
-            t = torch.full((1,), scheduler.num_timesteps - 1, device=device)
+            # Use sigma_max for single-step generation (not timestep)
+            sigma = torch.full((1,), model.student.sigma_max, device=device)
             
             # Generate sample
-            x_0_pred = model.student(x_t, t, hint)
+            x_0_pred = model.student(x_t, sigma, hint)
             
             # Save sample
             sample = torch.clamp(x_0_pred, -1, 1)
@@ -94,9 +94,26 @@ def generate_from_random_noise(model, scheduler, model_config, output_dir, num_s
             
             vutils.save_image(sample, os.path.join(output_dir, f'random_sample_{i:03d}.png'))
             
-            # Save hint for reference
+            # Save hint for reference - adapt channels for visualization
             hint_vis = torch.clamp(hint, -1, 1)
             hint_vis = (hint_vis + 1) / 2
+            
+            # Adapt hint channels to match image channels for consistent visualization
+            im_channels = model_config['im_channels']
+            hint_channels = model_config['hint_channels']
+            
+            if hint_channels == 1 and im_channels == 3:
+                # Convert grayscale hint to RGB
+                hint_vis = hint_vis.repeat(1, 3, 1, 1)
+            elif hint_channels == 3 and im_channels == 1:
+                # Convert RGB hint to grayscale
+                hint_vis = hint_vis.mean(dim=1, keepdim=True)
+            elif hint_channels != im_channels:
+                # Take first channel and adapt
+                hint_vis = hint_vis[:, 0:1, :, :]
+                if im_channels > 1:
+                    hint_vis = hint_vis.repeat(1, im_channels, 1, 1)
+            
             vutils.save_image(hint_vis, os.path.join(output_dir, f'random_hint_{i:03d}.png'))
 
 
@@ -128,10 +145,12 @@ def generate_from_test_data(model, scheduler, dataset_config, output_dir, num_sa
             
             # Start from pure noise
             x_t = torch.randn_like(im)
-            t = torch.full((im.shape[0],), scheduler.num_timesteps - 1, device=device)
             
-            # Generate sample
-            x_0_pred = model.student(x_t, t, hint)
+            # Use sigma_max for single-step generation (not timestep)
+            sigma = torch.full((im.shape[0],), model.student.sigma_max, device=device)
+            
+            # Generate sample - consistency model expects sigma, not timestep
+            x_0_pred = model.student(x_t, sigma, hint)
             
             # Save results
             sample = torch.clamp(x_0_pred, -1, 1)
@@ -140,12 +159,38 @@ def generate_from_test_data(model, scheduler, dataset_config, output_dir, num_sa
             # Original image for comparison
             original = (im + 1) / 2
             
-            # Convert hint to grayscale for comparison (take first channel)
-            hint_gray = hint[:, 0:1, :, :]  # Take only first channel
-            hint_gray = hint_gray.repeat(1, 3, 1, 1)  # Repeat to make 3 channels
-
-            # Create comparison grid (all 3-channel now)
-            comparison = torch.cat([hint_gray, original, sample], dim=0)
+            # Get the number of channels in the images
+            im_channels = original.shape[1]
+            
+            # Prepare hint for visualization - adapt to match image channels
+            if hint.shape[1] == 1:
+                # Single channel hint (e.g., Canny edges)
+                hint_vis = hint[:, 0:1, :, :]  # Take first channel
+                if im_channels == 3:
+                    # Convert to RGB by repeating
+                    hint_vis = hint_vis.repeat(1, 3, 1, 1)
+                # For grayscale images (im_channels == 1), keep as is
+            elif hint.shape[1] == 3:
+                # Multi-channel hint
+                if im_channels == 1:
+                    # Convert to grayscale
+                    hint_vis = hint.mean(dim=1, keepdim=True)
+                else:
+                    # Keep as is for RGB
+                    hint_vis = hint
+            else:
+                # Handle other hint channel configurations
+                # Take first channel and adapt to image channels
+                hint_vis = hint[:, 0:1, :, :]
+                if im_channels > 1:
+                    hint_vis = hint_vis.repeat(1, im_channels, 1, 1)
+            
+            # Normalize hint for display
+            hint_vis = torch.clamp(hint_vis, -1, 1)
+            hint_vis = (hint_vis + 1) / 2
+            
+            # Create comparison grid (all have same number of channels now)
+            comparison = torch.cat([hint_vis, original, sample], dim=0)
             vutils.save_image(comparison, os.path.join(output_dir, f'test_comparison_{i:03d}.png'), nrow=3)
 
 
@@ -153,7 +198,7 @@ def generate_from_custom_hints(model, scheduler, model_config, output_dir, num_s
     """Generate samples from custom control hints"""
     print(f"Generating {num_samples} samples from custom hints...")
     
-    # Create some custom control hints (e.g., different digit shapes)
+    # Create some custom control hints
     custom_hints = create_custom_hints(model_config, num_samples)
     
     with torch.no_grad():
@@ -165,18 +210,33 @@ def generate_from_custom_hints(model, scheduler, model_config, output_dir, num_s
             # Use custom hint
             hint = custom_hints[i:i+1].to(device)
             
-            # Use final timestep for single-step generation
-            t = torch.full((1,), scheduler.num_timesteps - 1, device=device)
+            # Use sigma_max for single-step generation (not timestep)
+            sigma = torch.full((1,), model.student.sigma_max, device=device)
             
             # Generate sample
-            x_0_pred = model.student(x_t, t, hint)
+            x_0_pred = model.student(x_t, sigma, hint)
             
             # Save sample
             sample = torch.clamp(x_0_pred, -1, 1)
             sample = (sample + 1) / 2
             
             vutils.save_image(sample, os.path.join(output_dir, f'custom_sample_{i:03d}.png'))
-            vutils.save_image(hint, os.path.join(output_dir, f'custom_hint_{i:03d}.png'))
+            
+            # Save hint with proper channel adaptation
+            hint_vis = hint.clone()
+            im_channels = model_config['im_channels']
+            hint_channels = model_config['hint_channels']
+            
+            if hint_channels == 1 and im_channels == 3:
+                hint_vis = hint_vis.repeat(1, 3, 1, 1)
+            elif hint_channels == 3 and im_channels == 1:
+                hint_vis = hint_vis.mean(dim=1, keepdim=True)
+            elif hint_channels != im_channels:
+                hint_vis = hint_vis[:, 0:1, :, :]
+                if im_channels > 1:
+                    hint_vis = hint_vis.repeat(1, im_channels, 1, 1)
+            
+            vutils.save_image(hint_vis, os.path.join(output_dir, f'custom_hint_{i:03d}.png'))
 
 
 def create_custom_hints(model_config, num_samples):
