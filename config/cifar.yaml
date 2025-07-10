@@ -24,6 +24,8 @@ model_params:
   num_up_layers: 2
   num_heads: 4
   sigma_data: 1.0  # Higher value for RGB data
+  sigma_min: 0.002  # Minimum noise level
+  sigma_max: 5.0    # Much lower maximum noise level (was 80.0!)
   
 train_params:
   task_name: 'cifar10'
