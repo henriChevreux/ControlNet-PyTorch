@@ -1,4 +1,5 @@
 dataset_params:
+  task_name: 'cifar10'
   im_path: 'data/cifar10_data'
   im_test_path: 'data/cifar10_data'
   canny_im_size: 32
@@ -34,7 +35,7 @@ train_params:
   controlnet_lr: 0.0001
   ddpm_ckpt_name: 'ddpm_cifar10_ckpt.pth'
   controlnet_ckpt_name: 'ddpm_controlnet_cifar10_ckpt.pth'
-  consistency_epochs: 30
+  consistency_epochs: 100
   consistency_lr: 0.0001
-  distribution_matching_epochs: 30
+  distribution_matching_epochs: 100
   distribution_matching_lr: 0.00005

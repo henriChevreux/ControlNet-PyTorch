@@ -39,12 +39,13 @@ def sample(args):
     
     # Load student checkpoint
     student_ckpt_path = os.path.join(train_config['task_name'], 
-                                    'consistency_controlnet_distilled_ckpt.pth')
+                                    'consistency_controlnet_distilled.pth')
     
     if not os.path.exists(student_ckpt_path):
         raise FileNotFoundError(f"Student checkpoint not found: {student_ckpt_path}")
     
-    model.student.load_state_dict(torch.load(student_ckpt_path, map_location=device))
+    checkpoint = torch.load(student_ckpt_path, map_location=device, weights_only=False)
+    model.student.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     
     # Create output directory
@@ -141,16 +142,9 @@ def generate_from_test_data(model, scheduler, dataset_config, output_dir, num_sa
             
             # Convert hint to grayscale for comparison (take first channel)
             hint_gray = hint[:, 0:1, :, :]  # Take only first channel
-            
-            # Save individual images
-            vutils.save_image(sample, os.path.join(output_dir, f'test_sample_{i:03d}.png'))
-            vutils.save_image(original, os.path.join(output_dir, f'test_original_{i:03d}.png'))
-            vutils.save_image(hint_gray, os.path.join(output_dir, f'test_hint_{i:03d}.png'))
-            
-            # Save full hint (3-channel)
-            vutils.save_image(hint, os.path.join(output_dir, f'test_hint_full_{i:03d}.png'))
-            
-            # Create comparison grid (all grayscale)
+            hint_gray = hint_gray.repeat(1, 3, 1, 1)  # Repeat to make 3 channels
+
+            # Create comparison grid (all 3-channel now)
             comparison = torch.cat([hint_gray, original, sample], dim=0)
             vutils.save_image(comparison, os.path.join(output_dir, f'test_comparison_{i:03d}.png'), nrow=3)
 

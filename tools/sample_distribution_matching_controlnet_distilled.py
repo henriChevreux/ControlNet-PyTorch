@@ -48,7 +48,9 @@ def sample(args):
     if not os.path.exists(student_ckpt_path):
         raise FileNotFoundError(f"Student checkpoint not found: {student_ckpt_path}")
     
-    model.student.load_state_dict(torch.load(student_ckpt_path, map_location=device))
+    # Robust loading with fallback
+    checkpoint = torch.load(student_ckpt_path, map_location=device, weights_only=False)
+    model.student.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     
     # Create output directory

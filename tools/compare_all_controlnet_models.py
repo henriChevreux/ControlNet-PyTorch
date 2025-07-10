@@ -5,6 +5,7 @@ import os
 import time
 import numpy as np
 from dataset.mnist_dataset import MnistDataset
+from dataset.cifar_dataset import CifarDataset
 from torch.utils.data import DataLoader
 from models.controlnet import ControlNet
 from models.consistency_controlnet_distilled import ConsistencyControlNetDistilled
@@ -14,7 +15,10 @@ from scheduler.consistency_scheduler import ConsistencyScheduler
 import torchvision.utils as vutils
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+# Suppress OpenCV parallel backend info messages
+os.environ['OPENCV_LOG_LEVEL'] = 'ERROR'
+import cv2
+cv2.setLogLevel(0)
 
 def load_checkpoint_safely(checkpoint_path, device):
     """Safely load checkpoint handling different formats"""
@@ -148,9 +152,17 @@ def compare_models(args):
     
     # Create test dataset
     test_dataset_path = dataset_config.get('im_test_path', dataset_config['im_path'])
-    test_dataset = MnistDataset('test',
-                               im_path=test_dataset_path,
-                               return_hints=True)
+    if train_config['task_name'] == 'mnist':
+        test_dataset = MnistDataset('test',
+                                im_path=test_dataset_path,
+                                return_hints=True)
+    elif train_config['task_name'] == 'cifar10':
+        test_dataset = CifarDataset('test',
+                                im_path=test_dataset_path,
+                                return_hints=True,
+                                download=dataset_config['download'])
+    else:
+        raise ValueError(f"Invalid dataset name: {train_config['task_name']}")
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
     
     # Create output directory

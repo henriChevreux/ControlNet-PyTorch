@@ -1,4 +1,5 @@
 dataset_params:
+  task_name: 'mnist'
   im_path: 'data/mnist/train/images'
   im_test_path: 'data/mnist/test/images'
   canny_im_size: 28

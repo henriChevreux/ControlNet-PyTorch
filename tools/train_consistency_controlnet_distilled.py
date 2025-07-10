@@ -10,6 +10,10 @@ from dataset.cifar_dataset import CifarDataset
 from torch.utils.data import DataLoader
 from models.consistency_controlnet_distilled import ConsistencyControlNetDistilled
 from scheduler.consistency_scheduler import ConsistencyScheduler
+# Suppress OpenCV parallel backend info messages
+os.environ['OPENCV_LOG_LEVEL'] = 'ERROR'
+import cv2
+cv2.setLogLevel(0)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -46,8 +50,7 @@ def train(args):
     
     dataset_loader = DataLoader(dataset,
                               batch_size=train_config['batch_size'],
-                              shuffle=True,
-                              num_workers=4)
+                              shuffle=True)
     
     # Create distilled model - use ControlNet checkpoint, not DDPM checkpoint
     teacher_ckpt_path = os.path.join(train_config['task_name'], 
@@ -139,7 +142,7 @@ def train(args):
         
         # Save checkpoint
         checkpoint_path = os.path.join(train_config['task_name'], 
-                                      f'consistency_controlnet_distilled_epoch_{epoch_idx + 1}.pth')
+                                            'consistency_controlnet_distilled.pth')
         torch.save({
             'epoch': epoch_idx + 1,
             'model_state_dict': model.student.state_dict(),
@@ -147,17 +150,6 @@ def train(args):
             'optimizer_state_dict': optimizer.state_dict(),
             'model_config': model_config,
         }, checkpoint_path)
-        
-        # Also save latest checkpoint
-        latest_checkpoint_path = os.path.join(train_config['task_name'], 
-                                            'consistency_controlnet_distilled_latest.pth')
-        torch.save({
-            'epoch': epoch_idx + 1,
-            'model_state_dict': model.student.state_dict(),
-            'ema_teacher_state_dict': model.ema_teacher.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'model_config': model_config,
-        }, latest_checkpoint_path)
     
     print('Distillation training completed!')
 
