@@ -1,5 +1,18 @@
-ControlNet Implementation in PyTorch
+ControlNet Distillation Research in PyTorch
 ========
+
+**This repository is based on the [ExplainabilityAI ControlNet-PyTorch](https://github.com/explainingai-code/ControlNet-PyTorch) repository and extends it with advanced distillation techniques for fast single-step ControlNet inference.**
+
+## Purpose
+
+This research repository implements and compares different distillation approaches for ControlNet models, enabling **single-step sampling** instead of the traditional multi-step denoising process. The main contributions are:
+
+1. **Consistency ControlNet Distillation**: Single-step sampling using consistency loss
+2. **Distribution Matching ControlNet Distillation**: Single-step sampling using distribution matching loss  
+3. **Comprehensive Evaluation**: Side-by-side comparison of different distillation approaches
+
+The goal is to achieve **fast inference** (1 step vs 1000 steps) while maintaining high-quality controllable image generation.
+
 ## ControlNet Tutorial Video
 <a href="https://www.youtube.com/watch?v=n6CwImm_WDI">
    <img alt="ControlNet Tutorial" src="https://github.com/user-attachments/assets/00bcedd4-45b9-4c4f-8563-8c00589e6a08"
@@ -13,28 +26,34 @@ Canny Edge Control - Top, Sample - Below
 
 ___
 
-This repository implements ControlNet in PyTorch for diffusion models.
-As of now, the repo provides code to do the following:
-* Training and Inference of Unconditional DDPM on MNIST dataset
-* Training and Inference of ControlNet with DDPM on MNIST using canny edges
-* Training and Inference of Unconditional Latent Diffusion Model on CelebHQ dataset(resized to 128x128 with latent images being 32x32)
-* Training and Inference of ControlNet with Unconditional Latent Diffusion Model on CelebHQ using canny edges
-* Training and Inference of Consistency ControlNet distilled from DDPM ControlNet (single-step sampling)
-* Training and Inference of Distribution Matching ControlNet distilled from DDPM ControlNet (single-step sampling)
+## Research Focus: ControlNet Distillation
 
-
-For autoencoder of Latent Diffusion Model, I provide training and inference code for vae.
+This repository provides comprehensive implementations for:
+* **Baseline Models**: Training and Inference of DDPM ControlNet on MNIST and LDM ControlNet on CelebHQ
+* **Consistency ControlNet**: Single-step sampling using consistency distillation from pre-trained ControlNet DDPM
+* **Distribution Matching ControlNet**: Single-step sampling using distribution matching distillation from pre-trained ControlNet DDPM
+* **Model Comparison**: Tools to compare quality and speed across different approaches
 
 ## Model Types
 
-### DDPM ControlNet
-The original ControlNet implementation that uses a multi-step denoising process. Provides high-quality results but requires many inference steps.
+### DDPM ControlNet (Baseline)
+The original ControlNet implementation that uses a multi-step denoising process. Provides high-quality results but requires many inference steps (~1000 steps).
 
-### Consistency ControlNet
-A distilled version of DDPM ControlNet that learns to predict clean images directly from noisy images in a single step. Uses consistency loss to ensure the model's predictions are consistent across different noise levels.
+### Consistency ControlNet (Research Focus)
+A **distilled version** of DDPM ControlNet that learns to predict clean images directly from noisy images in a **single step**. Uses consistency loss to ensure the model's predictions are consistent across different noise levels.
 
-### Distribution Matching ControlNet
-A distilled version of DDPM ControlNet that uses distribution matching loss (KL divergence + MSE) to ensure the generated samples match the target distribution. Also provides single-step sampling for fast inference.
+**Key Features:**
+- Single-step sampling (1000x faster inference)
+- Consistency loss for stable training
+- Maintains control fidelity
+
+### Distribution Matching ControlNet (Research Focus)  
+A **distilled version** of DDPM ControlNet that uses distribution matching loss (KL divergence + MSE) to ensure the generated samples match the target distribution. Also provides **single-step sampling** for fast inference.
+
+**Key Features:**
+- Single-step sampling (1000x faster inference)
+- Distribution matching loss for better sample quality
+- Enhanced noise handling for pure-noise generation
 
 ## Setup
 * Create a new conda environment with python 3.10 then run below commands
