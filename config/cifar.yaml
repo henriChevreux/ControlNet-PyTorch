@@ -29,7 +29,7 @@ model_params:
   
 train_params:
   task_name: 'cifar10'
-  batch_size: 32
+  batch_size: 64  # Increased batch size for better training stability
   num_epochs: 200
   controlnet_epochs: 200
   num_samples: 25
@@ -38,7 +38,7 @@ train_params:
   controlnet_lr: 0.0001
   ddpm_ckpt_name: 'ddpm_cifar10_ckpt.pth'
   controlnet_ckpt_name: 'ddpm_controlnet_cifar10_ckpt.pth'
-  consistency_epochs: 100
+  consistency_epochs: 150  # Longer training for RGB complexity
   consistency_lr: 0.0001
-  distribution_matching_epochs: 100
+  distribution_matching_epochs: 150  # Longer training for RGB complexity
   distribution_matching_lr: 0.00005
