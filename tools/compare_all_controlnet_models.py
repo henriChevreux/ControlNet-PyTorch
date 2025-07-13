@@ -101,7 +101,7 @@ def compare_models(args):
     
     # Load consistency student checkpoint
     consistency_ckpt = os.path.join(train_config['task_name'], 
-                                   'consistency_controlnet_distilled_latest.pth')
+                                   'consistency_controlnet_distilled.pth')
     if os.path.exists(consistency_ckpt):
         consistency_state_dict = load_checkpoint_safely(consistency_ckpt, device)
         if consistency_state_dict is not None:
@@ -190,6 +190,8 @@ def compare_models(args):
                 
             im = im.float().to(device)
             hint = hint.float().to(device)
+
+            print(f"Sampling image {sample_count} of {args.num_samples}")
             
             # DDPM ControlNet sampling
             ddpm_sample, ddpm_time = generate_ddpm_sample(ddpm_controlnet, ddpm_scheduler, im, hint, args.ddpm_steps)
@@ -202,9 +204,10 @@ def compare_models(args):
                 consistency_times.append(consistency_time)
                 consistency_samples.append(consistency_sample.cpu())
             else:
-                # Use DDPM as fallback
-                consistency_samples.append(ddpm_sample.cpu())
-                consistency_times.append(ddpm_time)
+                # Skip consistency model if not available
+                print("⚠️  Consistency model not available, skipping...")
+                consistency_samples.append(torch.zeros_like(im).cpu())
+                consistency_times.append(0.0)
             
             # Distribution Matching ControlNet sampling
             if dmd_controlnet is not None:
@@ -212,9 +215,10 @@ def compare_models(args):
                 dmd_times.append(dmd_time)
                 dmd_samples.append(dmd_sample.cpu())
             else:
-                # Use DDPM as fallback
-                dmd_samples.append(ddpm_sample.cpu())
-                dmd_times.append(ddpm_time)
+                # Skip DMD model if not available
+                print("⚠️  DMD model not available, skipping...")
+                dmd_samples.append(torch.zeros_like(im).cpu())
+                dmd_times.append(0.0)
             
             hints.append(hint.cpu())
             originals.append(im.cpu())
@@ -275,10 +279,8 @@ def generate_ddpm_sample(model, scheduler, im, hint, num_steps):
 
 def generate_consistency_sample(model, scheduler, im, hint):
     start_time = time.time()
-    x_t = torch.randn_like(im)
-    # Use sigma_max for consistency model (high noise level for single-step generation)
-    sigma = torch.full((im.shape[0],), model.sigma_max, device=im.device)
-    x_0_pred = model.student(x_t, sigma, hint)
+    # Use the model's built-in generate method for proper consistency sampling
+    x_0_pred = model.generate(hint, im.shape)
     end_time = time.time()
     return x_0_pred, end_time - start_time
 
