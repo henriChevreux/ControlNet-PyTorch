@@ -152,8 +152,14 @@ class DMDTrainer:
             im = im.float().to(device)
             hint = hint.float().to(device)
             
-            # Sample random timestep
-            t = torch.randint(0, self.diffusion_config['num_timesteps'], (im.shape[0],)).to(device)
+            # Sample timesteps with bias toward high noise levels (for pure noise sampling)
+            if np.random.rand() < 0.5:  # 50% high noise training
+                # Sample heavily from high noise levels (750-999)
+                t = torch.randint(int(0.75 * self.diffusion_config['num_timesteps']), 
+                                 self.diffusion_config['num_timesteps'], (im.shape[0],)).to(device)
+            else:
+                # Sample from all timesteps
+                t = torch.randint(0, self.diffusion_config['num_timesteps'], (im.shape[0],)).to(device)
             
             # Add noise to images
             noise = torch.randn_like(im)

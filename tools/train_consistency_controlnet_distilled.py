@@ -111,8 +111,15 @@ def train(args):
                 
             else:
                 # Manual distillation loss (alternative approach)
-                # Sample random timestep and convert to sigma
-                t = torch.randint(0, diffusion_config['num_timesteps'], (batch_size,)).to(device)
+                # Sample timesteps with bias toward high noise levels (for pure noise sampling)
+                if np.random.rand() < 0.5:  # 50% high noise training
+                    # Sample heavily from high noise levels (750-999)
+                    t = torch.randint(int(0.75 * diffusion_config['num_timesteps']), 
+                                     diffusion_config['num_timesteps'], (batch_size,)).to(device)
+                else:
+                    # Sample from all timesteps
+                    t = torch.randint(0, diffusion_config['num_timesteps'], (batch_size,)).to(device)
+                
                 sigma = timestep_to_sigma(t, 
                                         sigma_min=model.sigma_min, 
                                         sigma_max=model.sigma_max,
