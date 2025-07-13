@@ -14,38 +14,49 @@ def make_zero_module(module):
 
 
 class FeatureExtractor(nn.Module):
-    """Feature extractor optimized for MNIST grayscale images"""
+    """Feature extractor optimized for both grayscale (MNIST) and RGB (CIFAR) images"""
     def __init__(self, in_channels=1, trainable=False):
         super().__init__()
         
-        # Multi-scale feature extraction for MNIST
+        # Scale feature channels based on input channels for better capacity
+        base_channels = 32 if in_channels == 1 else 64  # More channels for RGB
+        
+        # Multi-scale feature extraction for both MNIST and CIFAR
         self.features = nn.ModuleList([
             # Low-level features (edges, basic shapes)
             nn.Sequential(
-                nn.Conv2d(in_channels, 32, kernel_size=3, padding=1),
+                nn.Conv2d(in_channels, base_channels, kernel_size=3, padding=1),
+                nn.BatchNorm2d(base_channels),
                 nn.ReLU(),
-                nn.Conv2d(32, 32, kernel_size=3, padding=1),
+                nn.Conv2d(base_channels, base_channels, kernel_size=3, padding=1),
+                nn.BatchNorm2d(base_channels),
                 nn.ReLU()
             ),
-            # Mid-level features (digit parts)
+            # Mid-level features (digit parts / object parts)
             nn.Sequential(
-                nn.Conv2d(32, 64, kernel_size=3, padding=1, stride=2),
+                nn.Conv2d(base_channels, base_channels * 2, kernel_size=3, padding=1, stride=2),
+                nn.BatchNorm2d(base_channels * 2),
                 nn.ReLU(),
-                nn.Conv2d(64, 64, kernel_size=3, padding=1),
+                nn.Conv2d(base_channels * 2, base_channels * 2, kernel_size=3, padding=1),
+                nn.BatchNorm2d(base_channels * 2),
                 nn.ReLU()
             ),
-            # High-level features (digit shapes)
+            # High-level features (digit shapes / object shapes)
             nn.Sequential(
-                nn.Conv2d(64, 128, kernel_size=3, padding=1, stride=2),
+                nn.Conv2d(base_channels * 2, base_channels * 4, kernel_size=3, padding=1, stride=2),
+                nn.BatchNorm2d(base_channels * 4),
                 nn.ReLU(),
-                nn.Conv2d(128, 128, kernel_size=3, padding=1),
+                nn.Conv2d(base_channels * 4, base_channels * 4, kernel_size=3, padding=1),
+                nn.BatchNorm2d(base_channels * 4),
                 nn.ReLU()
             ),
             # Very high-level features (global structure)
             nn.Sequential(
-                nn.Conv2d(128, 256, kernel_size=3, padding=1, stride=2),
+                nn.Conv2d(base_channels * 4, base_channels * 8, kernel_size=3, padding=1, stride=2),
+                nn.BatchNorm2d(base_channels * 8),
                 nn.ReLU(),
-                nn.Conv2d(256, 256, kernel_size=3, padding=1),
+                nn.Conv2d(base_channels * 8, base_channels * 8, kernel_size=3, padding=1),
+                nn.BatchNorm2d(base_channels * 8),
                 nn.ReLU()
             )
         ])
@@ -164,7 +175,9 @@ class DistributionMatchingControlNetDistilled(nn.Module):
         self.teacher.eval()  # Freeze teacher
         
         # Feature extractor for perceptual/distribution matching
-        self.feature_extractor = FeatureExtractor(in_channels=model_config.get('in_channels', 1))
+        # Use correct input channels for the dataset (3 for CIFAR, 1 for MNIST)
+        im_channels = model_config.get('im_channels', 1)
+        self.feature_extractor = FeatureExtractor(in_channels=im_channels)
         
         # Noise scheduler for teacher
         from scheduler.linear_noise_scheduler import LinearNoiseScheduler
